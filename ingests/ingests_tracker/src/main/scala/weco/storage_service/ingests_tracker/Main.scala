@@ -14,6 +14,7 @@ import weco.storage_service.ingests_tracker.tracker.dynamo.DynamoIngestTracker
 import weco.storage.typesafe.DynamoBuilder
 import weco.typesafe.WellcomeTypesafeApp
 import weco.typesafe.config.builders.AkkaBuilder
+import weco.typesafe.config.builders.EnrichConfig._
 
 object Main extends WellcomeTypesafeApp {
   runWithConfig { config: Config =>
@@ -48,9 +49,13 @@ object Main extends WellcomeTypesafeApp {
       config = DynamoBuilder.buildDynamoConfig(config)
     )
 
+    val host = config
+      .getStringOption("ingestsTracker.host")
+      .getOrElse("localhost")
+
     new IngestsTrackerApi[SNSConfig, SNSConfig](
       ingestTracker,
       messagingService
-    )()
+    )(host = host)
   }
 }

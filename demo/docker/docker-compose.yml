@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  aws:
+    image: "localstack/localstack"  # TODO: Pin to a specific version
+    volumes:
+      - "./localstack:/tmp/localstack"
+
+      # Files with extension .sh in this directory will be run when
+      # the container is started for the first time.
+      # See https://github.com/localstack/localstack#initializing-a-fresh-instance
+      - "./init:/docker-entrypoint-initaws.d"
+    ports:
+      - "4566"
+    environment:
+      - "SERVICES=dynamodb,iam,s3,sns,sqs"
+      - "DEFAULT_REGION=eu-west-1"
+      - "HOSTNAME_EXTERNAL=aws"
+      - "DATA_DIR=/tmp/localstack/data"
+
+  ingests_tracker:
+    image: "ingests_tracker:74884e3ba074efb36c6c6632b38d264b29f8f155"
+
+    restart: "on-failure"
+
+    environment:
+      - "aws_key=test"
+      - "aws_secret=test"
+      - "aws_endpoint=http://aws:4566"
+      - "aws_region=eu-west-1"
+      - "AWS_REGION=eu-west-1"
+
+      - "ingests_table_name=demo-ingests"
+      - "callback_notifications_topic_arn=arn:aws:sns:eu-west-1:000000000000:callback_notifications"
+      - "updated_ingests_topic_arn=arn:aws:sns:eu-west-1:000000000000:updated_ingests"
+
+      - "ingests_tracker_host=0.0.0.0"
+
+  ingests_worker:
+    image: "ingests_worker:74884e3ba074efb36c6c6632b38d264b29f8f155"
+
+    restart: "on-failure"
+
+    environment:
+      - "aws_key=test"
+      - "aws_secret=test"
+      - "aws_endpoint=http://aws:4566"
+      - "aws_region=eu-west-1"
+      - "AWS_REGION=eu-west-1"
+
+      - "queue_url=http://aws:4566/000000000000/ingests_worker_input"
+      - "metrics_namespace=ingests_worker"
+      - "ingests_tracker_host=http://ingests_tracker:8080"
