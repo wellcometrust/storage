@@ -50,7 +50,8 @@ steps:
     label: "Test Python scripts"
   - wait
   - command: .buildkite/scripts/complete_build.py
-    label: "complete build"
+    label: "tag commit as latest"
+    if: build.branch == "main"
   - wait
   - label: release to stage
     if: build.branch == "main"
