@@ -1,13 +1,6 @@
 package weco.storage_service.bagit.services
 
-import weco.storage_service.bagit.models.{
-  Bag,
-  BagFetchMetadata,
-  BagManifest,
-  BagPath,
-  MatchedLocation
-}
-import weco.storage_service.verify.Checksum
+import weco.storage_service.bagit.models._
 
 /** A bag can contain concrete files or refer to files stored elsewhere
   * in the fetch file.  This object takes a list of files referenced in
@@ -37,7 +30,7 @@ object BagMatcher {
     } yield payloadMatchedLocations ++ tagMatchedLocations
 
   def correlateFetchEntryToBagFile(
-    manifest: BagManifest,
+    manifest: NewBagManifest,
     fetchEntries: Map[BagPath, BagFetchMetadata]
   ): Either[Throwable, Seq[MatchedLocation]] = {
     // First construct the list of matched locations -- for every file in the bag,
@@ -45,13 +38,10 @@ object BagMatcher {
     val matchedLocations =
       manifest.entries
         .map {
-          case (bagPath, checksumValue) =>
+          case (bagPath, checksum) =>
             MatchedLocation(
               bagPath = bagPath,
-              checksum = Checksum(
-                algorithm = manifest.checksumAlgorithm,
-                value = checksumValue
-              ),
+              checksum = checksum,
               fetchMetadata = fetchEntries.get(bagPath)
             )
         }

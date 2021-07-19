@@ -3,7 +3,12 @@ package weco.storage_service.bag_register.services
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.{Assertion, TryValues}
-import weco.storage_service.bagit.models.{Bag, BagPath, BagVersion}
+import weco.storage_service.bagit.models.{
+  Bag,
+  BagPath,
+  BagVersion,
+  MultiChecksumValue
+}
 import weco.storage_service.bagit.services.s3.S3BagReader
 import weco.storage_service.fixtures.PayloadEntry
 import weco.storage_service.fixtures.s3.S3BagBuilder
@@ -235,24 +240,93 @@ class StorageManifestServiceTest
       // in the file manifest
       val storageManifestChecksums =
         storageManifest.manifest.files.map { file =>
-          file.name -> file.checksum.value
+          file.name -> file.checksum
         }.toMap
 
       val bagChecksums =
         bag.manifest.entries
-          .map { case (bagPath, checksum) => bagPath.value -> checksum.value }
+          .map {
+            case (bagPath, multiChecksum) =>
+              bagPath.value -> multiChecksum.sha256.get
+          }
 
       storageManifestChecksums shouldBe bagChecksums
 
       // in the tag manifest
       val tagManifestChecksums =
         storageManifest.tagManifest.files.map { file =>
-          file.name -> file.checksum.value
+          file.name -> file.checksum
         }.toMap
 
       val tagChecksums =
         bag.tagManifest.entries
-          .map { case (bagPath, checksum) => bagPath.value -> checksum.value }
+          .map {
+            case (bagPath, multiChecksum) =>
+              bagPath.value -> multiChecksum.sha256.get
+          }
+
+      tagManifestChecksums.filterKeys { _ != "tagmanifest-sha256.txt" } shouldBe tagChecksums
+    }
+  }
+
+  it("prefers SHA-512 checksums to SHA-256") {
+    val version = createBagVersion
+
+    withLocalS3Bucket { implicit bucket =>
+      val (bagRoot, bag) = createStorageManifestBag(version = version)
+
+      val bagWithSha512 = bag.copy(
+        manifest = bag.manifest.copy(
+          entries = bag.manifest.entries
+            .map {
+              case (path, multiChecksum) =>
+                (path, multiChecksum.copy(sha512 = Some(randomChecksumValue)))
+            }
+        ),
+        tagManifest = bag.tagManifest.copy(
+          entries = bag.tagManifest.entries
+            .map {
+              case (path, multiChecksum) =>
+                (path, multiChecksum.copy(sha512 = Some(randomChecksumValue)))
+            }
+        )
+      )
+
+      val location = PrimaryS3ReplicaLocation(bagRoot)
+
+      val storageManifest = createManifest(
+        bag = bagWithSha512,
+        location = location,
+        version = version
+      )
+
+      // in the file manifest
+      val storageManifestChecksums =
+        storageManifest.manifest.files.map { file =>
+          file.name -> file.checksum
+        }.toMap
+
+      val bagChecksums =
+        bagWithSha512.manifest.entries
+          .map {
+            case (bagPath, multiChecksum) =>
+              bagPath.value -> multiChecksum.sha512.get
+          }
+
+      storageManifestChecksums shouldBe bagChecksums
+
+      // in the tag manifest
+      val tagManifestChecksums =
+        storageManifest.tagManifest.files.map { file =>
+          file.name -> file.checksum
+        }.toMap
+
+      val tagChecksums =
+        bagWithSha512.tagManifest.entries
+          .map {
+            case (bagPath, multiChecksum) =>
+              bagPath.value -> multiChecksum.sha512.get
+          }
 
       tagManifestChecksums.filterKeys { _ != "tagmanifest-sha256.txt" } shouldBe tagChecksums
     }
@@ -314,7 +388,14 @@ class StorageManifestServiceTest
       val files = Seq("data/file1.txt", "data/file2.txt", "data/dir/file3.txt")
 
       val bag = createBagWith(
-        manifestEntries = files.map { BagPath(_) -> randomChecksumValue }.toMap
+        manifestEntries = files.map {
+          BagPath(_) -> MultiChecksumValue(sha256 = Some(randomChecksumValue))
+        }.toMap,
+        tagManifestEntries = Map(
+          BagPath("bagit.txt") -> MultiChecksumValue(
+            sha256 = Some(randomChecksumValue)
+          )
+        )
       )
 
       val err = new Throwable("BOOM!")
@@ -371,9 +452,7 @@ class StorageManifestServiceTest
         }
 
         val storageManifest = createManifest(
-          bag = bag.copy(
-            tagManifest = bag.tagManifest.copy(entries = Map.empty)
-          ),
+          bag = bag,
           location = location,
           version = version,
           sizeFinderImpl = cachingSizeFinder
@@ -425,13 +504,14 @@ class StorageManifestServiceTest
 
         val brokenSizeFinder = new S3SizeFinder() {
           override def get(location: S3ObjectLocation): ReadEither =
-            Left(StoreReadError(err))
+            location.key match {
+              case s if !s.contains("/data/") => Right(Identified(location, 1L))
+              case _                          => Left(StoreReadError(err))
+            }
         }
 
         val storageManifest = createManifest(
-          bag = bag.copy(
-            tagManifest = bag.tagManifest.copy(entries = Map.empty)
-          ),
+          bag = bag,
           location = location,
           version = version,
           sizeFinderImpl = brokenSizeFinder

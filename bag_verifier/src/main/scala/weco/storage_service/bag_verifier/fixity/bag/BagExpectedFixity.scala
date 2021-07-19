@@ -12,7 +12,6 @@ import weco.storage_service.bag_verifier.storage.{Locatable, Resolvable}
 import weco.storage_service.bag_verifier.storage.bag.BagLocatable
 import weco.storage_service.bagit.models._
 import weco.storage_service.bagit.services.BagMatcher
-import weco.storage_service.verify._
 import weco.storage.{Location, Prefix}
 
 class BagExpectedFixity[BagLocation <: Location, BagPrefix <: Prefix[
@@ -55,21 +54,17 @@ class BagExpectedFixity[BagLocation <: Location, BagPrefix <: Prefix[
     matched: MatchedLocation
   ): Either[Throwable, ExpectedFileFixity] =
     matched match {
-      case MatchedLocation(
-          bagPath: BagPath,
-          checksum: Checksum,
-          Some(fetchEntry)
-          ) =>
+      case MatchedLocation(bagPath, multiChecksum, Some(fetchEntry)) =>
         Right(
           FetchFileFixity(
             uri = fetchEntry.uri,
             path = bagPath,
-            checksum = checksum,
+            multiChecksum = multiChecksum,
             length = fetchEntry.length
           )
         )
 
-      case MatchedLocation(bagPath: BagPath, checksum: Checksum, None) =>
+      case MatchedLocation(bagPath: BagPath, multiChecksum, None) =>
         bagPath.locateWith(root) match {
           case Left(e) => Left(CannotCreateExpectedFixity(e.msg))
           case Right(location) =>
@@ -77,7 +72,7 @@ class BagExpectedFixity[BagLocation <: Location, BagPrefix <: Prefix[
               DataDirectoryFileFixity(
                 uri = resolvable.resolve(location),
                 path = bagPath,
-                checksum = checksum
+                multiChecksum = multiChecksum
               )
             )
         }

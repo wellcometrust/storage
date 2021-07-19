@@ -1,7 +1,6 @@
 package weco.storage_service.bag_verifier.fixity
 
 import java.net.URI
-
 import grizzled.slf4j.Logging
 import weco.storage_service.bag_verifier.storage.Locatable._
 import weco.storage_service.bag_verifier.storage.{
@@ -16,6 +15,7 @@ import weco.storage.store.Readable
 import weco.storage.streaming.InputStreamWithLength
 import weco.storage.tags.Tags
 import weco.storage.{DoesNotExistError, Location, Prefix, ReadError}
+import weco.storage_service.bagit.models.MultiChecksumValue
 
 import scala.util.{Failure, Success}
 
@@ -34,9 +34,7 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
   ): FileFixityResult[BagLocation] = {
     debug(s"Attempting to verify: $expectedFileFixity")
 
-    val algorithm = expectedFileFixity.checksum.algorithm
-
-    // The verifier writes a tag to the storage location after it's verified.
+    // The verifier writes tag to the storage location after it's verified.
     //
     // If it tries to verify a location and finds the correct tag, it skips
     // re-reading the entire file.
@@ -64,7 +62,6 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
         expectedFileFixity = expectedFileFixity,
         location = location,
         existingTags = existingTags,
-        algorithm = algorithm,
         size = size
       )
 
@@ -143,12 +140,28 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
     expectedFileFixity: ExpectedFileFixity,
     location: BagLocation,
     existingTags: Map[String, String],
-    algorithm: HashingAlgorithm,
     size: Long
-  ): Either[FileFixityError[BagLocation], FileFixityCorrect[BagLocation]] =
-    existingTags.get(fixityTagName(expectedFileFixity)) match {
-      case Some(cachedFixityValue)
-          if cachedFixityValue == fixityTagValue(expectedFileFixity) =>
+  ): Either[FileFixityError[BagLocation], FileFixityCorrect[BagLocation]] = {
+    val algorithms = expectedFileFixity.multiChecksum.algorithms
+
+    val expectedChecksumTags =
+      algorithms.map { h =>
+        fixityTagName(h) -> expectedFileFixity.multiChecksum
+          .getValue(h)
+          .get
+          .value
+      }.toMap
+
+    val existingChecksumTags =
+      existingTags.filter {
+        case (key, _) => expectedChecksumTags.contains(key)
+      }
+
+    (expectedChecksumTags, existingChecksumTags) match {
+
+      // Case 1: all the fixity tags on the object match the expected fixities,
+      // so we know this object has already been verified.
+      case (expected, actual) if actual == expected =>
         Right(
           FileFixityCorrect(
             expectedFileFixity = expectedFileFixity,
@@ -157,18 +170,24 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
           )
         )
 
-      case Some(_) =>
+      // Case 2: there's a fixity tag on the object which is different from the
+      // value we expected.
+      case (expected, actual) if actual.exists {
+            case (key, value) => expected(key) != value
+          } =>
         Left(
           FileFixityMismatch(
             expectedFileFixity = expectedFileFixity,
             objectLocation = location,
             e = new Throwable(
-              s"Cached verification tag doesn't match expected checksum for $location: $existingTags (${expectedFileFixity.checksum})"
+              s"Cached verification tag doesn't match expected checksum for $location: $actual (expected $expected)"
             )
           )
         )
 
-      case None =>
+      // Case 3: all other cases.  This includes the case where there are no verification
+      // tags on the object, or there are tags for only some algorithms.
+      case _ =>
         // Note: it is possible for something to go wrong *after* we open
         // the input stream, e.g. if the stream gets interrupted.
         //
@@ -187,17 +206,16 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
               expectedFileFixity = expectedFileFixity,
               location = location,
               inputStream = inputStream,
-              algorithm = algorithm,
               size = size
             )
         }
     }
+  }
 
   private def verifyChecksumFromInputStream(
     expectedFileFixity: ExpectedFileFixity,
     location: BagLocation,
     inputStream: InputStreamWithLength,
-    algorithm: HashingAlgorithm,
     size: Long
   ): Either[FileFixityError[BagLocation], FileFixityCorrect[BagLocation]] = {
     // This assertion should never fire in practice -- if it does, it means
@@ -212,17 +230,18 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
         s"The size of $location has changed!  Before: $size, after: ${inputStream.length}"
     )
 
-    val fixityResult = Checksum.create(inputStream, algorithm) match {
+    val fixityResult = Hasher.hash(inputStream) match {
       case Failure(e) =>
         Left(
           FileFixityCouldNotGetChecksum(
             expectedFileFixity = expectedFileFixity,
             objectLocation = location,
-            e = FailedChecksumCreation(algorithm, e)
+            e = FailedChecksumCreation(e)
           )
         )
 
-      case Success(checksum) if checksum == expectedFileFixity.checksum =>
+      case Success(hashingResult)
+          if isMatch(hashingResult, expectedFileFixity.multiChecksum) =>
         Right(
           FileFixityCorrect(
             expectedFileFixity = expectedFileFixity,
@@ -231,14 +250,14 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
           )
         )
 
-      case Success(checksum) =>
+      case Success(hashingResult) =>
         Left(
           FileFixityMismatch(
             expectedFileFixity = expectedFileFixity,
             objectLocation = location,
             e = FailedChecksumNoMatch(
-              actual = checksum,
-              expected = expectedFileFixity.checksum
+              actual = hashingResult,
+              expected = expectedFileFixity.multiChecksum
             )
           )
         )
@@ -252,16 +271,29 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
     fixityResult
   }
 
+  private def isMatch(
+    hashingResult: HashingResult,
+    multiChecksum: MultiChecksumValue[ChecksumValue]
+  ): Boolean =
+    multiChecksum.algorithms
+      .map { h =>
+        val expectedValue = multiChecksum.getValue(h).get
+        val actualValue = hashingResult.getChecksumValue(h)
+
+        expectedValue == actualValue
+      }
+      .forall(_ == true)
+
   private def writeFixityTags(
-    expectedFileFixity: ExpectedFileFixity,
+    fileFixity: ExpectedFileFixity,
     location: BagLocation
   ): Either[FileFixityCouldNotWriteTag[BagLocation], Unit] =
     tags
       .update(location) { existingTags =>
-        val tagName = fixityTagName(expectedFileFixity)
-        val tagValue = fixityTagValue(expectedFileFixity)
-
-        val fixityTags = Map(tagName -> tagValue)
+        val fixityTags =
+          fileFixity.multiChecksum.algorithms.map { h =>
+            fixityTagName(h) -> fileFixity.multiChecksum.getValue(h).get.value
+          }.toMap
 
         // We've already checked the tags on this location once, so we shouldn't
         // see conflicting values here.  Check we're not about to blat some existing
@@ -270,10 +302,17 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
         //
         // Note: this is a fairly weak guarantee, because tags aren't locked during
         // an update operation.
-        assert(
-          existingTags.getOrElse(tagName, tagValue) == tagValue,
-          s"Trying to write $fixityTags to $location; existing tags conflict: $existingTags"
-        )
+        existingTags.foreach {
+          case (tagName, tagValue) =>
+            fixityTags.get(tagName) match {
+              case Some(value) =>
+                assert(
+                  value == tagValue,
+                  s"Trying to write $fixityTags to $location; existing tags conflict: $existingTags"
+                )
+              case _ => ()
+            }
+        }
 
         Right(existingTags ++ fixityTags)
       } match {
@@ -281,7 +320,7 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
       case Left(writeError) =>
         Left(
           FileFixityCouldNotWriteTag(
-            expectedFileFixity = expectedFileFixity,
+            expectedFileFixity = fileFixity,
             objectLocation = location,
             e = writeError.e
           )
@@ -289,11 +328,8 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
     }
 
   // e.g. Content-MD5, Content-SHA256
-  protected def fixityTagName(expectedFileFixity: ExpectedFileFixity): String =
-    s"Content-${expectedFileFixity.checksum.algorithm.pathRepr.toUpperCase}"
-
-  private def fixityTagValue(expectedFileFixity: ExpectedFileFixity): String =
-    expectedFileFixity.checksum.value.toString
+  protected def fixityTagName(algorithm: HashingAlgorithm): String =
+    s"Content-${algorithm.pathRepr.toUpperCase}"
 
   private def handleReadErrors[T](
     t: Either[ReadError, T],

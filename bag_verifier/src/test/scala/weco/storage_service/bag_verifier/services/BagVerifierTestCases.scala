@@ -364,9 +364,11 @@ trait BagVerifierTestCases[Verifier <: BagVerifier[
         val error = summary.e
 
         error shouldBe a[BagUnavailable]
-        error.getMessage should include("Error loading manifest-sha256.txt")
+        error.getMessage should include(
+          "Could not find any payload manifests in the bag"
+        )
 
-        ingestFailed.maybeUserFacingMessage.get shouldBe "Error loading manifest-sha256.txt: no such file!"
+        ingestFailed.maybeUserFacingMessage.get shouldBe "Could not find any payload manifests in the bag"
     }
   }
 
@@ -383,9 +385,11 @@ trait BagVerifierTestCases[Verifier <: BagVerifier[
         val error = summary.e
 
         error shouldBe a[BagUnavailable]
-        error.getMessage should include("Error loading tagmanifest-sha256.txt")
+        error.getMessage should include(
+          "Could not find any tag manifests in the bag"
+        )
 
-        ingestFailed.maybeUserFacingMessage.get shouldBe "Error loading tagmanifest-sha256.txt: no such file!"
+        ingestFailed.maybeUserFacingMessage.get shouldBe "Could not find any tag manifests in the bag"
     }
   }
 
@@ -500,6 +504,157 @@ trait BagVerifierTestCases[Verifier <: BagVerifier[
           result.maybeUserFacingMessage.get should startWith(
             "External identifier in bag-info.txt does not match request"
           )
+      }
+    }
+  }
+
+  describe("handles multiple manifests") {
+    it("passes a bag with two manifests") {
+      val space = createStorageSpace
+      val externalIdentifier = ExternalIdentifier("multiple_manifests")
+      val version = createBagVersion
+
+      withNamespace { namespace =>
+        val bagRoot =
+          bagBuilder.createBagRoot(space, externalIdentifier, version)(
+            namespace
+          )
+
+        val bagInfo = createBagInfoWith(
+          payloadOxum = PayloadOxum(payloadBytes = 15, numberOfPayloadFiles = 1),
+          externalIdentifier = externalIdentifier
+        )
+
+        val bagContents = bagBuilder.BagContents(
+          fetchObjects = Map(),
+          bagObjects = Map(
+            bagRoot.asLocation("data/README.txt") -> "This is a file\n",
+            bagRoot.asLocation("bag-info.txt") -> (
+              "Bagging-Date: 2021-07-16\n" +
+                "External-Identifier: multiple_manifests\n" +
+                "Payload-Oxum: 15.1\n"
+            ),
+            bagRoot.asLocation("bagit.txt") -> (
+              "BagIt-Version: 0.97\n" +
+                "Tag-File-Character-Encoding: UTF-8\n"
+            ),
+            bagRoot
+              .asLocation("manifest-sha512.txt") -> "7cd31c95fc5a40e5be7bf46e84df52c6d8d50e9003dfb7e3b85ac9c704b90a63ac220147645ff22d410166356133d241a7346e452c863601ce68b82d075031f8  data/README.txt\n",
+            bagRoot
+              .asLocation("manifest-md5.txt") -> "a86e2699931d4f3d1456e79383749e43  data/README.txt\n",
+            bagRoot.asLocation("tagmanifest-sha512.txt") -> (
+              "b7112a34f6892c1d3bfb6054dc4977c2ffd32bd7e4d8b686d08f68d1ef407c35857ad3cf552543318238701afb390faad20ac7a0a22b1cf43cd916dfb5d97efa  bag-info.txt\n" +
+                "418dcfbe17d5f4b454b18630be795462cf7da4ceb6313afa49451aa2568e41f7ca3d34cf0280c7d056dc5681a70c37586aa1755620520b9198eede905ba2d0f6  bagit.txt\n" +
+                "bfbd969850673f65d14917bcbe42e86df867e4e383702a4471eb0776f2f1cfa48ec102489416741dcf278344bc0229ac2a9011080ffe2a4e55a64540ed0291d9  manifest-sha512.txt\n" +
+                "f8036c779eba074e72101458d675c287b731f5bec4cbe744d59565ce4cc26f96d5259d8f7b1cc55f3999d4db34eba59d99dc131200f1bdf8ddc89912ed23afe6  manifest-md5.txt\n"
+            ),
+            bagRoot.asLocation("tagmanifest-md5.txt") -> (
+              "aa3c5e977224a9186dbb36ef1193be0d  bag-info.txt\n" +
+                "9e5ad981e0d29adc278f6a294b8c2aca  bagit.txt\n" +
+                "d570da37be627c3955c165422e667245  manifest-sha512.txt\n" +
+                "7983626d0844789acfe8059b6730b9d1  manifest-md5.txt\n"
+            )
+          ),
+          bagRoot = bagRoot,
+          bagInfo = bagInfo
+        )
+
+        withTypedStore { implicit typedStore =>
+          bagBuilder.storeBagContents(bagContents)
+
+          val primaryBucket = createBucket
+
+          val ingestStep =
+            withBagContext(bagRoot) { bagContext =>
+              withVerifier(primaryBucket) {
+                _.verify(
+                  ingestId = createIngestID,
+                  bagContext = bagContext,
+                  space = space,
+                  externalIdentifier = externalIdentifier
+                )
+              }
+            }
+
+          ingestStep.success.get shouldBe a[IngestStepSucceeded[_]]
+        }
+      }
+    }
+
+    it("fails if one of the payload manifests has an incorrect checksum") {
+      val space = createStorageSpace
+      val externalIdentifier = ExternalIdentifier("multiple_manifests")
+      val version = createBagVersion
+
+      withNamespace { namespace =>
+        val bagRoot =
+          bagBuilder.createBagRoot(space, externalIdentifier, version)(
+            namespace
+          )
+
+        val bagInfo = createBagInfoWith(
+          payloadOxum = PayloadOxum(payloadBytes = 15, numberOfPayloadFiles = 1),
+          externalIdentifier = externalIdentifier
+        )
+
+        val bagContents = bagBuilder.BagContents(
+          fetchObjects = Map(),
+          bagObjects = Map(
+            bagRoot.asLocation("data/README.txt") -> "This is a file\n",
+            bagRoot.asLocation("bag-info.txt") -> (
+              "Bagging-Date: 2021-07-16\n" +
+                "External-Identifier: multiple_manifests\n" +
+                "Payload-Oxum: 15.1\n"
+            ),
+            bagRoot.asLocation("bagit.txt") -> (
+              "BagIt-Version: 0.97\n" +
+                "Tag-File-Character-Encoding: UTF-8\n"
+            ),
+            bagRoot
+              .asLocation("manifest-sha512.txt") -> "7cd31c95fc5a40e5be7bf46e84df52c6d8d50e9003dfb7e3b85ac9c704b90a63ac220147645ff22d410166356133d241a7346e452c863601ce68b82d075031f8  data/README.txt\n",
+            bagRoot
+              .asLocation("manifest-md5.txt") -> "aaaaaaaa  data/README.txt\n",
+            bagRoot.asLocation("tagmanifest-sha512.txt") -> (
+              "b7112a34f6892c1d3bfb6054dc4977c2ffd32bd7e4d8b686d08f68d1ef407c35857ad3cf552543318238701afb390faad20ac7a0a22b1cf43cd916dfb5d97efa  bag-info.txt\n" +
+                "418dcfbe17d5f4b454b18630be795462cf7da4ceb6313afa49451aa2568e41f7ca3d34cf0280c7d056dc5681a70c37586aa1755620520b9198eede905ba2d0f6  bagit.txt\n" +
+                "bfbd969850673f65d14917bcbe42e86df867e4e383702a4471eb0776f2f1cfa48ec102489416741dcf278344bc0229ac2a9011080ffe2a4e55a64540ed0291d9  manifest-sha512.txt\n" +
+                "f8036c779eba074e72101458d675c287b731f5bec4cbe744d59565ce4cc26f96d5259d8f7b1cc55f3999d4db34eba59d99dc131200f1bdf8ddc89912ed23afe6  manifest-md5.txt\n"
+            ),
+            bagRoot.asLocation("tagmanifest-md5.txt") -> (
+              "aa3c5e977224a9186dbb36ef1193be0d  bag-info.txt\n" +
+                "9e5ad981e0d29adc278f6a294b8c2aca  bagit.txt\n" +
+                "d570da37be627c3955c165422e667245  manifest-sha512.txt\n" +
+                "7983626d0844789acfe8059b6730b9d1  manifest-md5.txt\n"
+            )
+          ),
+          bagRoot = bagRoot,
+          bagInfo = bagInfo
+        )
+
+        withTypedStore { implicit typedStore =>
+          bagBuilder.storeBagContents(bagContents)
+
+          val primaryBucket = createBucket
+
+          val ingestStep =
+            withBagContext(bagRoot) { bagContext =>
+              withVerifier(primaryBucket) {
+                _.verify(
+                  ingestId = createIngestID,
+                  bagContext = bagContext,
+                  space = space,
+                  externalIdentifier = externalIdentifier
+                )
+              }
+            }
+
+          val result = ingestStep.success.get
+
+          result shouldBe a[IngestFailed[_]]
+          result.maybeUserFacingMessage shouldBe Some(
+            "Unable to verify 2 files in the bag: manifest-md5.txt, data/README.txt"
+          )
+        }
       }
     }
   }
@@ -725,34 +880,6 @@ trait BagVerifierTestCases[Verifier <: BagVerifier[
             "Files referred to in the fetch.txt also appear in the bag:"
           )
       }
-    }
-
-    it("passes a bag that includes an extra manifest/tag manifest") {
-      val space = createStorageSpace
-      val externalIdentifier = createExternalIdentifier
-
-      withNamespace { implicit namespace =>
-        withBag(space, externalIdentifier) {
-          case (primaryBucket, bagRoot) =>
-            val location = bagRoot.asLocation("tagmanifest-sha512.txt")
-            writeFile(location)
-
-            val ingestStep =
-              withBagContext(bagRoot) { bagContext =>
-                withVerifier(primaryBucket) {
-                  _.verify(
-                    ingestId = createIngestID,
-                    bagContext = bagContext,
-                    space = space,
-                    externalIdentifier = externalIdentifier
-                  )
-                }
-              }
-
-            ingestStep.success.get shouldBe a[IngestStepSucceeded[_]]
-        }
-      }
-
     }
   }
 

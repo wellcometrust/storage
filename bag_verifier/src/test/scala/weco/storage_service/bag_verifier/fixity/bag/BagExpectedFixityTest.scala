@@ -1,20 +1,24 @@
 package weco.storage_service.bag_verifier.fixity.bag
 
-import java.net.URI
-
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
+import weco.storage.generators.MemoryLocationGenerators
+import weco.storage.providers.memory.{MemoryLocation, MemoryLocationPrefix}
 import weco.storage_service.bag_verifier.fixity.{
   DataDirectoryFileFixity,
   ExpectedFileFixity,
   FetchFileFixity
 }
 import weco.storage_service.bag_verifier.storage.Resolvable
-import weco.storage_service.bagit.models.{BagFetchMetadata, BagPath}
+import weco.storage_service.bagit.models.{
+  BagFetchMetadata,
+  BagPath,
+  MultiChecksumValue
+}
 import weco.storage_service.generators.{BagGenerators, FetchMetadataGenerators}
-import weco.storage_service.verify.{Checksum, ChecksumValue, HashingAlgorithm}
-import weco.storage.generators.MemoryLocationGenerators
-import weco.storage.providers.memory.{MemoryLocation, MemoryLocationPrefix}
+import weco.storage_service.verify.ChecksumValue
+
+import java.net.URI
 
 class BagExpectedFixityTest
     extends AnyFunSpec
@@ -48,102 +52,78 @@ class BagExpectedFixityTest
 
     it("for a bag that just has manifest files") {
       val manifestEntries = Map(
-        BagPath("example.txt") -> randomChecksumValue,
-        BagPath("names.txt") -> randomChecksumValue
+        BagPath("example.txt") -> randomMultiChecksum,
+        BagPath("names.txt") -> randomMultiChecksum
       )
 
-      val manifestChecksumAlgorithm = randomHashingAlgorithm
-
       val bag = createBagWith(
-        manifestEntries = manifestEntries,
-        manifestChecksumAlgorithm = manifestChecksumAlgorithm
+        manifestEntries = manifestEntries
       )
 
       bagExpectedFixity.create(bag).right.get should contain theSameElementsAs
-        getExpectedLocations(
-          manifestEntries = manifestEntries,
-          checksumAlgorithm = manifestChecksumAlgorithm
-        )
+        getExpectedLocations(manifestEntries = manifestEntries)
     }
 
     it("for a bag that just has tag manifest files") {
       val tagManifestEntries = Map(
-        BagPath("tagmanifest-sha256.txt") -> randomChecksumValue,
-        BagPath("manifest-sha256.txt") -> randomChecksumValue
+        BagPath("tagmanifest-sha256.txt") -> randomMultiChecksum,
+        BagPath("manifest-sha256.txt") -> randomMultiChecksum
       )
 
-      val tagManifestChecksumAlgorithm = randomHashingAlgorithm
-
-      val bag = createBagWith(
-        tagManifestEntries = tagManifestEntries,
-        tagManifestChecksumAlgorithm = tagManifestChecksumAlgorithm
-      )
+      val bag = createBagWith(tagManifestEntries = tagManifestEntries)
 
       bagExpectedFixity.create(bag).right.get should contain theSameElementsAs
-        getExpectedLocations(
-          manifestEntries = tagManifestEntries,
-          checksumAlgorithm = tagManifestChecksumAlgorithm
-        )
+        getExpectedLocations(manifestEntries = tagManifestEntries)
     }
 
     it("for a bag that has both file manifest and tag manifest files") {
       val manifestEntries = Map(
-        BagPath("example.txt") -> randomChecksumValue,
-        BagPath("names.txt") -> randomChecksumValue
+        BagPath("example.txt") -> randomMultiChecksum,
+        BagPath("names.txt") -> randomMultiChecksum
       )
 
       val tagManifestEntries = Map(
-        BagPath("tagmanifest-sha256.txt") -> randomChecksumValue,
-        BagPath("manifest-sha256.txt") -> randomChecksumValue
+        BagPath("tagmanifest-sha256.txt") -> randomMultiChecksum,
+        BagPath("manifest-sha256.txt") -> randomMultiChecksum
       )
-
-      val checksumAlgorithm = randomHashingAlgorithm
 
       val bag = createBagWith(
         manifestEntries = manifestEntries,
-        manifestChecksumAlgorithm = checksumAlgorithm,
-        tagManifestEntries = tagManifestEntries,
-        tagManifestChecksumAlgorithm = checksumAlgorithm
+        tagManifestEntries = tagManifestEntries
       )
 
       bagExpectedFixity.create(bag).right.get should contain theSameElementsAs
         getExpectedLocations(
-          manifestEntries = manifestEntries ++ tagManifestEntries,
-          checksumAlgorithm = checksumAlgorithm
+          manifestEntries = manifestEntries ++ tagManifestEntries
         )
     }
 
     it("for a bag with fetch entries") {
       val manifestEntries = Map(
-        BagPath("example.txt") -> randomChecksumValue,
-        BagPath("names.txt") -> randomChecksumValue
+        BagPath("example.txt") -> randomMultiChecksum,
+        BagPath("names.txt") -> randomMultiChecksum
       )
 
       val fetchedManifestEntries = Map(
-        BagPath("random.txt") -> randomChecksumValue,
-        BagPath("cat.jpg") -> randomChecksumValue
+        BagPath("random.txt") -> randomMultiChecksum,
+        BagPath("cat.jpg") -> randomMultiChecksum
       )
 
       val fetchEntries = fetchedManifestEntries.keys.map {
         _ -> createFetchMetadata
       }.toMap
 
-      val manifestChecksumAlgorithm = randomHashingAlgorithm
-
       val bag = createBagWith(
         manifestEntries = manifestEntries ++ fetchedManifestEntries,
-        manifestChecksumAlgorithm = manifestChecksumAlgorithm,
         fetchEntries = fetchEntries
       )
 
       val expectedLocations =
         getExpectedLocations(
-          manifestEntries = manifestEntries,
-          checksumAlgorithm = manifestChecksumAlgorithm
+          manifestEntries = manifestEntries
         ) ++
           getExpectedLocations(
             manifestEntries = fetchedManifestEntries,
-            checksumAlgorithm = manifestChecksumAlgorithm,
             fetchEntries = fetchEntries
           )
 
@@ -187,37 +167,29 @@ class BagExpectedFixityTest
   }
 
   def getExpectedLocations(
-    manifestEntries: Map[BagPath, ChecksumValue],
-    checksumAlgorithm: HashingAlgorithm
+    manifestEntries: Map[BagPath, MultiChecksumValue[ChecksumValue]]
   ): Seq[ExpectedFileFixity] =
     manifestEntries.map {
-      case (bagPath, checksumValue) =>
+      case (bagPath, multiChecksum) =>
         DataDirectoryFileFixity(
           path = bagPath,
           uri = new URI(root.asLocation(bagPath.toString).toString),
-          checksum = Checksum(
-            algorithm = checksumAlgorithm,
-            value = checksumValue
-          )
+          multiChecksum = multiChecksum
         )
     }.toSeq
 
   def getExpectedLocations(
-    manifestEntries: Map[BagPath, ChecksumValue],
-    checksumAlgorithm: HashingAlgorithm,
+    manifestEntries: Map[BagPath, MultiChecksumValue[ChecksumValue]],
     fetchEntries: Map[BagPath, BagFetchMetadata]
   ): Seq[ExpectedFileFixity] =
     manifestEntries.map {
-      case (bagPath, checksumValue) =>
+      case (bagPath, multiChecksum) =>
         val fetchMetadata = fetchEntries(bagPath)
 
         FetchFileFixity(
           uri = fetchMetadata.uri,
           path = bagPath,
-          checksum = Checksum(
-            algorithm = checksumAlgorithm,
-            value = checksumValue
-          ),
+          multiChecksum = multiChecksum,
           length = fetchMetadata.length
         )
     }.toSeq
