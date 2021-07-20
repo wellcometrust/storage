@@ -12,7 +12,11 @@ import weco.storage_service.bag_verifier.fixity.{
 import weco.storage_service.bag_verifier.storage.Resolvable
 import weco.storage_service.bagit.models.{BagFetchMetadata, BagPath}
 import weco.storage_service.generators.{BagGenerators, FetchMetadataGenerators}
-import weco.storage_service.verify.{Checksum, ChecksumValue, HashingAlgorithm}
+import weco.storage_service.checksum.{
+  Checksum,
+  ChecksumAlgorithm,
+  ChecksumValue
+}
 import weco.storage.generators.MemoryLocationGenerators
 import weco.storage.providers.memory.{MemoryLocation, MemoryLocationPrefix}
 
@@ -143,7 +147,7 @@ class BagExpectedFixityTest
         ) ++
           getExpectedLocations(
             manifestEntries = fetchedManifestEntries,
-            checksumAlgorithm = manifestChecksumAlgorithm,
+            algorithm = manifestChecksumAlgorithm,
             fetchEntries = fetchEntries
           )
 
@@ -188,7 +192,7 @@ class BagExpectedFixityTest
 
   def getExpectedLocations(
     manifestEntries: Map[BagPath, ChecksumValue],
-    checksumAlgorithm: HashingAlgorithm
+    checksumAlgorithm: ChecksumAlgorithm
   ): Seq[ExpectedFileFixity] =
     manifestEntries.map {
       case (bagPath, checksumValue) =>
@@ -204,7 +208,7 @@ class BagExpectedFixityTest
 
   def getExpectedLocations(
     manifestEntries: Map[BagPath, ChecksumValue],
-    checksumAlgorithm: HashingAlgorithm,
+    algorithm: ChecksumAlgorithm,
     fetchEntries: Map[BagPath, BagFetchMetadata]
   ): Seq[ExpectedFileFixity] =
     manifestEntries.map {
@@ -215,7 +219,7 @@ class BagExpectedFixityTest
           uri = fetchMetadata.uri,
           path = bagPath,
           checksum = Checksum(
-            algorithm = checksumAlgorithm,
+            algorithm = algorithm,
             value = checksumValue
           ),
           length = fetchMetadata.length

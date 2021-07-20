@@ -1,9 +1,9 @@
 package weco.storage_service.bag_verifier.fixity
-import weco.storage_service.verify.{Checksum, HashingAlgorithm}
+import weco.storage_service.checksum.{Checksum, ChecksumAlgorithm}
 
 sealed trait FailedChecksum
 
-case class FailedChecksumCreation(algorithm: HashingAlgorithm, e: Throwable)
+case class FailedChecksumCreation(algorithm: ChecksumAlgorithm, e: Throwable)
     extends Throwable(s"Could not create checksum: ${e.getMessage}")
     with FailedChecksum
 

@@ -3,7 +3,7 @@ package weco.storage_service.bagit.services
 import java.io.InputStream
 
 import weco.storage_service.bagit.models._
-import weco.storage_service.verify.{HashingAlgorithm, SHA256}
+import weco.storage_service.checksum.{ChecksumAlgorithm, SHA256}
 import weco.storage._
 import weco.storage.store.Readable
 import weco.storage.streaming.InputStreamWithLength
@@ -14,9 +14,9 @@ trait BagReader[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]] {
   protected val bagFetch = BagPath("fetch.txt")
   protected val bagInfo = BagPath("bag-info.txt")
   protected val fileManifest =
-    (a: HashingAlgorithm) => BagPath(s"manifest-${a.pathRepr}.txt")
+    (a: ChecksumAlgorithm) => BagPath(s"manifest-${a.pathRepr}.txt")
   protected val tagManifest =
-    (a: HashingAlgorithm) => BagPath(s"tagmanifest-${a.pathRepr}.txt")
+    (a: ChecksumAlgorithm) => BagPath(s"tagmanifest-${a.pathRepr}.txt")
 
   implicit val readable: Readable[BagLocation, InputStreamWithLength]
 

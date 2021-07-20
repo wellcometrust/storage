@@ -3,7 +3,7 @@ package weco.storage_service.bagit.services
 import java.io.{BufferedReader, InputStream, InputStreamReader}
 
 import weco.storage_service.bagit.models.BagPath
-import weco.storage_service.verify.ChecksumValue
+import weco.storage_service.checksum.ChecksumValue
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}

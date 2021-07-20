@@ -8,7 +8,7 @@ import weco.fixtures.RandomGenerators
 import weco.messaging.fixtures.SQS.Queue
 import weco.storage_service.bagit.models._
 import weco.storage_service.ingests.models.{IngestID, StorageProvider}
-import weco.storage_service.verify._
+import weco.storage_service.checksum._
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -122,7 +122,7 @@ trait StorageRandomGenerators extends RandomGenerators {
   def createBagVersion: BagVersion =
     BagVersion(randomInt(from = 1, to = 100000))
 
-  def randomHashingAlgorithm: HashingAlgorithm = {
+  def randomHashingAlgorithm: ChecksumAlgorithm = {
     val algorithms = List(MD5, SHA1, SHA256, SHA512)
 
     algorithms(Random.nextInt(algorithms.length))
@@ -133,7 +133,7 @@ trait StorageRandomGenerators extends RandomGenerators {
   def createBagPathWithPrefix(prefix: String, name: String): BagPath =
     BagPath(s"$prefix/$name")
 
-  def createChecksumWith(algorithm: HashingAlgorithm = SHA256): Checksum =
+  def createChecksumWith(algorithm: ChecksumAlgorithm = SHA256): Checksum =
     Checksum(algorithm = algorithm, value = randomChecksumValue)
 
   def createChecksum: Checksum =

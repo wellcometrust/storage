@@ -4,7 +4,7 @@ import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 import weco.storage_service.generators.StorageManifestGenerators
 import weco.storage_service.storage.models.{FileManifest, StorageManifestFile}
-import weco.storage_service.verify._
+import weco.storage_service.checksum._
 
 class DisplayFileManifestTest
     extends AnyFunSpec

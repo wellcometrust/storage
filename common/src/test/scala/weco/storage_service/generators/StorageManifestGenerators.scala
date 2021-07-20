@@ -6,7 +6,7 @@ import weco.storage_service.bagit.models.{BagInfo, BagVersion}
 import weco.storage_service.ingests.models.IngestID
 import weco.storage_service.storage.models._
 import weco.storage_service.storage.services.DestinationBuilder
-import weco.storage_service.verify.{HashingAlgorithm, SHA256}
+import weco.storage_service.checksum.{ChecksumAlgorithm, SHA256}
 
 import scala.util.Random
 
@@ -15,7 +15,7 @@ trait StorageManifestGenerators
     with StorageSpaceGenerators
     with ReplicaLocationGenerators {
 
-  val checksumAlgorithm: HashingAlgorithm = SHA256
+  val checksumAlgorithm: ChecksumAlgorithm = SHA256
 
   def createStorageManifestFile: StorageManifestFile = {
     val path = createBagPath

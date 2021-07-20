@@ -3,26 +3,26 @@ package weco.storage_service.bagit.models
 import java.io.InputStream
 
 import weco.storage_service.bagit.services.BagManifestParser
-import weco.storage_service.verify.{ChecksumValue, HashingAlgorithm}
+import weco.storage_service.checksum.{ChecksumAlgorithm, ChecksumValue}
 
 import scala.util.Try
 
 sealed trait BagManifest {
-  val checksumAlgorithm: HashingAlgorithm
+  val checksumAlgorithm: ChecksumAlgorithm
   val entries: Map[BagPath, ChecksumValue]
 
   def paths: Seq[BagPath] = entries.keys.toSeq
 }
 
 case class PayloadManifest(
-  checksumAlgorithm: HashingAlgorithm,
+  checksumAlgorithm: ChecksumAlgorithm,
   entries: Map[BagPath, ChecksumValue]
 ) extends BagManifest
 
 case object PayloadManifest {
   def create(
     inputStream: InputStream,
-    checksumAlgorithm: HashingAlgorithm
+    checksumAlgorithm: ChecksumAlgorithm
   ): Try[PayloadManifest] =
     BagManifestParser.parse(inputStream).map { entries =>
       PayloadManifest(
@@ -33,14 +33,14 @@ case object PayloadManifest {
 }
 
 case class TagManifest(
-  checksumAlgorithm: HashingAlgorithm,
+  checksumAlgorithm: ChecksumAlgorithm,
   entries: Map[BagPath, ChecksumValue]
 ) extends BagManifest
 
 case object TagManifest {
   def create(
     inputStream: InputStream,
-    checksumAlgorithm: HashingAlgorithm
+    checksumAlgorithm: ChecksumAlgorithm
   ): Try[TagManifest] =
     BagManifestParser.parse(inputStream).map { entries =>
       TagManifest(

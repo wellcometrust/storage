@@ -2,7 +2,7 @@ package weco.storage_service.bag_register.services
 
 import weco.storage_service.bagit.models.UnreferencedFiles
 import weco.storage_service.storage.models.StorageManifestFile
-import weco.storage_service.verify.{Hasher, HashingAlgorithm}
+import weco.storage_service.checksum.{ChecksumAlgorithm, MultiChecksum}
 import weco.storage.store.Readable
 import weco.storage.streaming.InputStreamWithLength
 import weco.storage._
@@ -22,7 +22,7 @@ class TagManifestFileFinder[BagLocation <: Location](
 
   def getTagManifestFiles(
     prefix: Prefix[BagLocation],
-    algorithm: HashingAlgorithm
+    algorithm: ChecksumAlgorithm
   ): Try[Seq[StorageManifestFile]] = Try {
     val entries: Seq[StorageManifestFile] =
       UnreferencedFiles.tagManifestFiles.flatMap {
@@ -39,7 +39,7 @@ class TagManifestFileFinder[BagLocation <: Location](
   private def findIndividualTagManifestFile(
     name: String,
     prefix: Prefix[BagLocation],
-    algorithm: HashingAlgorithm
+    algorithm: ChecksumAlgorithm
   ): Option[StorageManifestFile] =
     streamReader.get(prefix.asLocation(name)) match {
       case Right(is) =>
@@ -47,8 +47,8 @@ class TagManifestFileFinder[BagLocation <: Location](
         // so it happens after the entire bag has been verified.  To verify the bag,
         // we've already had to read the tagmanifest-sha256.txt file, so an error
         // here would be unlikely (but probably not impossible).
-        val checksum = Hasher.hash(is.identifiedT) match {
-          case Success(hashResult) => hashResult.getChecksumValue(algorithm)
+        val checksum = MultiChecksum.create(is.identifiedT) match {
+          case Success(hashResult) => hashResult.getValue(algorithm)
           case Failure(err) =>
             throw new RuntimeException(
               s"Error reading tag manifest: $err"

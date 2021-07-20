@@ -8,7 +8,7 @@ import weco.storage_service.bag_verifier.fixity.{
   FetchFileFixity
 }
 import weco.storage_service.generators.StorageRandomGenerators
-import weco.storage_service.verify.{Checksum, MD5, SHA256}
+import weco.storage_service.checksum.{Checksum, MD5, SHA256}
 import weco.storage.Location
 
 trait FixityGenerators[BagLocation <: Location]

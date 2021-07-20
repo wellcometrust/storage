@@ -8,14 +8,14 @@ import weco.storage_service.storage.models.{
   StorageManifestFile,
   StorageSpace
 }
-import weco.storage_service.verify.HashingAlgorithm
+import weco.storage_service.checksum.ChecksumAlgorithm
 
 import java.time.Instant
 
 case class FileContext(
   space: StorageSpace,
   externalIdentifier: ExternalIdentifier,
-  hashingAlgorithm: HashingAlgorithm,
+  algorithm: ChecksumAlgorithm,
   bagLocation: PrimaryS3StorageLocation,
   file: StorageManifestFile,
   createdDate: Instant
@@ -33,7 +33,7 @@ case object FileContext {
     FileContext(
       space = manifest.space,
       externalIdentifier = manifest.info.externalIdentifier,
-      hashingAlgorithm = manifest.manifest.checksumAlgorithm,
+      algorithm = manifest.manifest.checksumAlgorithm,
       bagLocation = manifest.location.asInstanceOf[PrimaryS3StorageLocation],
       file = file,
       createdDate = manifest.createdDate

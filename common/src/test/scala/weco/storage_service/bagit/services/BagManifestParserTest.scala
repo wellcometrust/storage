@@ -6,7 +6,7 @@ import org.scalatest.{EitherValues, TryValues}
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 import weco.storage_service.bagit.models.BagPath
-import weco.storage_service.verify.ChecksumValue
+import weco.storage_service.checksum.ChecksumValue
 import weco.storage.streaming.Codec._
 
 class BagManifestParserTest

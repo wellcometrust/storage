@@ -28,7 +28,7 @@ case object IndexedFile {
       name = context.file.name,
       size = context.file.size,
       checksum = IndexedChecksum(
-        algorithm = context.hashingAlgorithm.toString,
+        algorithm = context.algorithm.toString,
         value = context.file.checksum.toString
       ),
       createdDate = context.createdDate

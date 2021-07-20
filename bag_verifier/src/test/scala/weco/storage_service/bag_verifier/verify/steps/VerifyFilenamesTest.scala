@@ -4,7 +4,7 @@ import org.scalatest.EitherValues
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 import weco.storage_service.bagit.models.{BagPath, PayloadManifest, TagManifest}
-import weco.storage_service.verify.{ChecksumValue, MD5}
+import weco.storage_service.checksum.{ChecksumValue, MD5}
 
 class VerifyFilenamesTest extends AnyFunSpec with Matchers with EitherValues {
   val verifier: VerifyFilenames =

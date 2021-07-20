@@ -7,7 +7,7 @@ import weco.storage_service.bagit.models.{
   BagPath,
   MatchedLocation
 }
-import weco.storage_service.verify.Checksum
+import weco.storage_service.checksum.Checksum
 
 /** A bag can contain concrete files or refer to files stored elsewhere
   * in the fetch file.  This object takes a list of files referenced in

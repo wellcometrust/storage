@@ -9,7 +9,7 @@ import weco.storage_service.storage.models.{
   PrimaryS3StorageLocation,
   StorageManifestFile
 }
-import weco.storage_service.verify.{SHA256, SHA512}
+import weco.storage_service.checksum.{SHA256, SHA512}
 import weco.storage_service.indexer.models.FileContext
 import weco.storage.s3.{S3ObjectLocation, S3ObjectLocationPrefix}
 
@@ -21,7 +21,7 @@ class IndexedFileTest
     val context = FileContext(
       space = createStorageSpace,
       externalIdentifier = createExternalIdentifier,
-      hashingAlgorithm = chooseFrom(SHA256, SHA512),
+      algorithm = chooseFrom(SHA256, SHA512),
       bagLocation = PrimaryS3StorageLocation(
         prefix = createS3ObjectLocationPrefix
       ),
@@ -40,7 +40,7 @@ class IndexedFileTest
     indexedFile.createdDate shouldBe context.createdDate
 
     indexedFile.checksum shouldBe IndexedChecksum(
-      algorithm = context.hashingAlgorithm.toString,
+      algorithm = context.algorithm.toString,
       value = context.file.checksum.toString
     )
   }
@@ -56,7 +56,7 @@ class IndexedFileTest
     val context = FileContext(
       space = createStorageSpace,
       externalIdentifier = createExternalIdentifier,
-      hashingAlgorithm = chooseFrom(SHA256, SHA512),
+      algorithm = chooseFrom(SHA256, SHA512),
       bagLocation = PrimaryS3StorageLocation(
         prefix = S3ObjectLocationPrefix(
           bucket = "example-storage",
@@ -88,7 +88,7 @@ class IndexedFileTest
     val context = FileContext(
       space = createStorageSpace,
       externalIdentifier = createExternalIdentifier,
-      hashingAlgorithm = chooseFrom(SHA256, SHA512),
+      algorithm = chooseFrom(SHA256, SHA512),
       bagLocation = PrimaryS3StorageLocation(
         createS3ObjectLocationPrefix
       ),

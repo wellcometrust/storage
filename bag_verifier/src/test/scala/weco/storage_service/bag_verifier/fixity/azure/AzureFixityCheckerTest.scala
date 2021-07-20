@@ -12,7 +12,7 @@ import weco.storage_service.bag_verifier.storage.azure.{
   AzureLocatable,
   AzureResolvable
 }
-import weco.storage_service.verify._
+import weco.storage_service.checksum._
 import weco.storage.azure.{AzureBlobLocation, AzureBlobLocationPrefix}
 import weco.storage.fixtures.AzureFixtures.Container
 import weco.storage.fixtures.DynamoFixtures.Table
@@ -70,7 +70,7 @@ class AzureFixityCheckerTest
   override def createId(implicit container: Container): AzureBlobLocation =
     createAzureBlobLocationWith(container)
 
-  override def tagName(algorithm: HashingAlgorithm): String =
+  override def tagName(algorithm: ChecksumAlgorithm): String =
     algorithm match {
       case MD5    => "ContentMD5"
       case SHA1   => "ContentSHA1"

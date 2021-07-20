@@ -33,7 +33,7 @@ trait FileIndexerFixtures
     FileContext(
       space = createStorageSpace,
       externalIdentifier = createExternalIdentifier,
-      hashingAlgorithm = createChecksum.algorithm,
+      algorithm = createChecksum.algorithm,
       bagLocation = PrimaryS3StorageLocation(
         createS3ObjectLocationPrefix
       ),

@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import weco.fixtures.TestWith
 import weco.storage_service.bag_verifier.generators.FixityGenerators
 import weco.storage_service.bag_verifier.storage.LocationNotFound
-import weco.storage_service.verify._
+import weco.storage_service.checksum._
 import weco.storage.store.Readable
 import weco.storage.store.fixtures.NamespaceFixtures
 import weco.storage.streaming.InputStreamWithLength

@@ -10,7 +10,7 @@ import weco.storage_service.bag_verifier.storage.{
   LocationNotFound,
   LocationParsingError
 }
-import weco.storage_service.verify._
+import weco.storage_service.checksum._
 import weco.storage.services.SizeFinder
 import weco.storage.store.Readable
 import weco.storage.streaming.InputStreamWithLength
@@ -143,7 +143,7 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
     expectedFileFixity: ExpectedFileFixity,
     location: BagLocation,
     existingTags: Map[String, String],
-    algorithm: HashingAlgorithm,
+    algorithm: ChecksumAlgorithm,
     size: Long
   ): Either[FileFixityError[BagLocation], FileFixityCorrect[BagLocation]] =
     existingTags.get(fixityTagName(expectedFileFixity)) match {
@@ -197,7 +197,7 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
     expectedFileFixity: ExpectedFileFixity,
     location: BagLocation,
     inputStream: InputStreamWithLength,
-    algorithm: HashingAlgorithm,
+    algorithm: ChecksumAlgorithm,
     size: Long
   ): Either[FileFixityError[BagLocation], FileFixityCorrect[BagLocation]] = {
     // This assertion should never fire in practice -- if it does, it means
@@ -212,37 +212,39 @@ trait FixityChecker[BagLocation <: Location, BagPrefix <: Prefix[BagLocation]]
         s"The size of $location has changed!  Before: $size, after: ${inputStream.length}"
     )
 
-    val fixityResult = Checksum.create(inputStream, algorithm) match {
-      case Failure(e) =>
-        Left(
-          FileFixityCouldNotGetChecksum(
-            expectedFileFixity = expectedFileFixity,
-            objectLocation = location,
-            e = FailedChecksumCreation(algorithm, e)
-          )
-        )
-
-      case Success(checksum) if checksum == expectedFileFixity.checksum =>
-        Right(
-          FileFixityCorrect(
-            expectedFileFixity = expectedFileFixity,
-            objectLocation = location,
-            size = inputStream.length
-          )
-        )
-
-      case Success(checksum) =>
-        Left(
-          FileFixityMismatch(
-            expectedFileFixity = expectedFileFixity,
-            objectLocation = location,
-            e = FailedChecksumNoMatch(
-              actual = checksum,
-              expected = expectedFileFixity.checksum
+    val fixityResult =
+      MultiChecksum.create(inputStream).map(_.getValue(algorithm)) match {
+        case Failure(e) =>
+          Left(
+            FileFixityCouldNotGetChecksum(
+              expectedFileFixity = expectedFileFixity,
+              objectLocation = location,
+              e = FailedChecksumCreation(algorithm, e)
             )
           )
-        )
-    }
+
+        case Success(value)
+            if Checksum(algorithm, value) == expectedFileFixity.checksum =>
+          Right(
+            FileFixityCorrect(
+              expectedFileFixity = expectedFileFixity,
+              objectLocation = location,
+              size = inputStream.length
+            )
+          )
+
+        case Success(value) =>
+          Left(
+            FileFixityMismatch(
+              expectedFileFixity = expectedFileFixity,
+              objectLocation = location,
+              e = FailedChecksumNoMatch(
+                actual = Checksum(algorithm, value),
+                expected = expectedFileFixity.checksum
+              )
+            )
+          )
+      }
 
     // Remember to close the InputStream when we're done, whatever the result.
     // If we don't, the verifier will accumulate open streams and run out of

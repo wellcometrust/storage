@@ -1,4 +1,4 @@
-package weco.storage_service.verify
+package weco.storage_service.checksum
 
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers

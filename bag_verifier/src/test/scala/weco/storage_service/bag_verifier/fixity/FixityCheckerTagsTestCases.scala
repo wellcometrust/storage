@@ -2,7 +2,7 @@ package weco.storage_service.bag_verifier.fixity
 
 import org.mockito.Mockito
 import org.mockito.Mockito.{times, verify}
-import weco.storage_service.verify._
+import weco.storage_service.checksum._
 import weco.storage.store.Readable
 import weco.storage.streaming.InputStreamWithLength
 import weco.storage.{Identified, Location, Prefix}
@@ -24,7 +24,7 @@ trait FixityCheckerTagsTestCases[BagLocation <: Location, BagPrefix <: Prefix[
   val checksumString = "68e109f0f40ca72a15e05cc22786f8e6"
   val checksum = Checksum(MD5, ChecksumValue(checksumString))
 
-  def tagName(algorithm: HashingAlgorithm): String =
+  def tagName(algorithm: ChecksumAlgorithm): String =
     algorithm match {
       case MD5    => "Content-MD5"
       case SHA1   => "Content-SHA1"

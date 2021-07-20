@@ -4,7 +4,7 @@ import java.time.Instant
 
 import weco.storage_service.bagit.models.{BagId, BagInfo, BagVersion}
 import weco.storage_service.ingests.models.IngestID
-import weco.storage_service.verify.{ChecksumValue, HashingAlgorithm}
+import weco.storage_service.checksum.{ChecksumAlgorithm, ChecksumValue}
 
 case class StorageManifestFile(
   checksum: ChecksumValue,
@@ -14,7 +14,7 @@ case class StorageManifestFile(
 )
 
 case class FileManifest(
-  checksumAlgorithm: HashingAlgorithm,
+  checksumAlgorithm: ChecksumAlgorithm,
   files: Seq[StorageManifestFile]
 )
 

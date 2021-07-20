@@ -2,7 +2,7 @@ package weco.storage_service.bag_verifier.fixity
 import java.net.URI
 
 import weco.storage_service.bagit.models.BagPath
-import weco.storage_service.verify.Checksum
+import weco.storage_service.checksum.Checksum
 
 sealed trait ExpectedFileFixity {
   val uri: URI
